@@ -3,4 +3,4 @@
 	url = https://github.com/raysan5/raylib.git
 [submodule "base"]
 	path = base
-	url = git@github.com:hassty/base.git
+	url = https://github.com:hassty/base.git
