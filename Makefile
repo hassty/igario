@@ -1,4 +1,3 @@
-# TODO: build types for game and its dependencies (for now debug libraylib.a is used)
 CFLAGS = -std=c99 -Wall -Wextra -D_GNU_SOURCE
 CC = gcc
 GDB = gdb
@@ -12,12 +11,12 @@ GAME_BINARY = igario
 GAME_CFLAGS = $(CFLAGS)
 GAME_INCLUDES = -isystem $(RAYLIB_DIR)
 GAME_OPTIONS = -DOS_IMPLEMENTATION_LINUX -DMEMORY_MMAP -DLOG_IMPLEMENTATION -DARENA_IMPLEMENTATION
-GAME_LDLIBS = -L./vendor/raylib/src/ -l:libraylib.a -lGL -lm -lpthread -ldl -lrt -lX11
+GAME_LDLIBS = -L$(RAYLIB_DIR) -l:libraylib.a -lGL -lm -lpthread -ldl -lrt -lX11
 
 # server
 SERVER_BINARY = server
 SERVER_CFLAGS = $(CFLAGS)
-SERVER_INCLUDES = -isystem vendor/rprand
+SERVER_INCLUDES = -isystem $(RAYLIB_DIR)/external
 SERVER_OPTIONS = -DOS_IMPLEMENTATION_LINUX -DMEMORY_MMAP -DLOG_IMPLEMENTATION -DARENA_IMPLEMENTATION -DRPRAND_IMPLEMENTATION
 SERVER_LDLIBS = -lm -lpthread
 SERVER_PORT ?= 1337
