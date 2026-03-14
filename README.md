@@ -1,7 +1,6 @@
 ## linux
 
 ```sh
-git submodule update --init
-make -C vendor/raylib/src
-make
+git submodule update --init --depth 1 --recommend-shallow
+make build
 ```
