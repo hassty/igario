@@ -15,6 +15,7 @@
 #include <sys/socket.h>
 #include <time.h>
 #include <unistd.h>
+#include <signal.h>
 
 #define FOOD_ITEMS_START_COUNT 2
 #define CLIENTS_MAX 100
@@ -152,6 +153,7 @@ typedef struct {
 static GameState gameState = {0};
 
 typedef struct {
+    bool shutdown;
     i32 sock;
     f64 tickDurationSec;
     u64 tickBeginUsec;
@@ -411,6 +413,12 @@ static void ServerTickEnd(void) {
     os_sleep_usec(sleepUsec);
 }
 
+void SigintHandler(i32 signo) {
+    UNUSED(signo);
+
+    serverState.shutdown = true;
+}
+
 i32 main(i32 argc, const char *argv[]) {
     if (argc != 2) {
         LOG_ERR("port not specified");
@@ -425,6 +433,8 @@ i32 main(i32 argc, const char *argv[]) {
 #endif
     ServerSetTickrate(60);
     TimerStart(&serverState.timer);
+
+    signal(SIGINT, SigintHandler);
 
     // TODO: define constant for arena size
     Arena tickArena = arena_create(MB(4));
@@ -476,7 +486,7 @@ i32 main(i32 argc, const char *argv[]) {
     }
 
     TimerStart(&gameState.foodSpawnTimer);
-    while (true) {
+    while (!serverState.shutdown) {
         ServerTickBegin();
 
         if (clients.count < 1) {
@@ -556,4 +566,7 @@ i32 main(i32 argc, const char *argv[]) {
         arena_reset(&tickArena);
         ServerTickEnd();
     }
+
+    LOG_INF("server shutting down");
+    close(serverState.sock);
 }

@@ -20,7 +20,7 @@ SERVER_INCLUDES = -isystem $(RAYLIB_DIR)/external
 SERVER_OPTIONS = -DOS_IMPLEMENTATION_LINUX -DMEMORY_MMAP -DLOG_IMPLEMENTATION -DARENA_IMPLEMENTATION -DRPRAND_IMPLEMENTATION
 SERVER_LDLIBS = -lm -lpthread
 
-.PHONY: build client server generate deps clean
+.PHONY: build client server generate raylib clean
 
 ifeq ($(BUILD_MODE),DEBUG)
     CFLAGS += -g -O0 -DDEBUG
@@ -34,16 +34,16 @@ endif
 
 build: server client
 
-client: deps generate $(CLIENT_BINARY).c
+client: raylib generate $(CLIENT_BINARY).c
 	$(CC) $(CLIENT_BINARY).c -o $(BUILD_DIR)/$(CLIENT_BINARY) $(CLIENT_CFLAGS) -I$(BUILD_DIR) $(CLIENT_INCLUDES) $(CLIENT_LDLIBS) $(CLIENT_OPTIONS)
 
-server: deps generate $(SERVER_BINARY).c
+server: generate $(SERVER_BINARY).c
 	$(CC) $(SERVER_BINARY).c -o $(BUILD_DIR)/$(SERVER_BINARY) $(SERVER_CFLAGS) -I$(BUILD_DIR) $(SERVER_INCLUDES) $(SERVER_LDLIBS) $(SERVER_OPTIONS)
 
 generate:
 	mkdir -p $(BUILD_DIR)/generated
 
-deps:
+raylib:
 	$(MAKE) -C $(RAYLIB_DIR) $(RAYLIB_CFLAGS)
 
 clean:
