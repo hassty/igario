@@ -70,10 +70,6 @@ static void DrawBG(i32 slices, f32 spacing) {
 static struct addrinfo *serverInfo = NULL;
 static i32 sock = -1;
 
-// TODO: add as options
-#define SERVER_ADDRESS "127.0.0.1"
-#define SERVER_PORT "1337"
-
 static const char *packetTypesClientStr[] = {
     PACKET_TYPES_CLIENT(AS_PACKET_STR) "UNKNOWN"};
 
@@ -108,7 +104,7 @@ static const char* packetServerStr[PACKET_SERVER_COUNT+1] = {
 };
 
 static bool PacketServerHandle(const PacketServer* packet) {
-    LOG_INF("handle packet: %s", packetServerStr[packet->header.type]);
+    LOG_DBG("handle packet: %s", packetServerStr[packet->header.type]);
     switch (packet->header.type) {
         case PACKET_SERVER_GAME_STATE: {
             const PacketGameState* gs = &packet->payload.gameState;
@@ -171,14 +167,12 @@ static void *NetworkThreadFn(void *arg) {
     exit(EXIT_FAILURE);
 }
 
-static void ConnectToServer(void) {
+static void ConnectToServer(const char *hostname, const char *port) {
     struct addrinfo hints = {
         .ai_family = AF_INET,
         .ai_socktype = SOCK_DGRAM,
     };
 
-    const char *hostname = SERVER_ADDRESS;
-    const char *port = SERVER_PORT;
     struct addrinfo *result = NULL;
     int err = getaddrinfo(hostname, port, &hints, &result);
     if (err != 0) {
@@ -252,11 +246,23 @@ static bool PlayerCanShrink(const Player *p) {
     return p->radius >= PLAYER_START_RADIUS * PLAYER_SHRINK_COEFFICIENT;
 }
 
-i32 main(void) {
+i32 main(i32 argc, const char *argv[]) {
+    if (argc != 3) {
+        LOG_ERR("missing host and port");
+        exit(EXIT_FAILURE);
+    }
+#ifdef DEBUG
     LogInit(LOG_DBG);
+    SetTraceLogLevel(LOG_DEBUG);
+#else
+    LogInit(LOG_INF);
+    SetTraceLogLevel(LOG_NONE);
+#endif
     frameArena = arena_create(MB(4));
 
-    ConnectToServer();
+    const char *hostname =  argv[1];
+    const char *port =  argv[2];
+    ConnectToServer(hostname, port);
 
     // TODO: define constants
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);

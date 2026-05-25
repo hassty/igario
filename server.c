@@ -316,7 +316,7 @@ static void *NetworkThreadFn(void *arg) {
                 break;
             }
             player->position = packet->data.playerMove.newPosition;
-            LOG_INF("player moved[%zu]: %.2f, %.2f", player->id,
+            LOG_DBG("player moved[%zu]: %.2f, %.2f", player->id,
                     player->position.x, player->position.y);
         } break;
 
@@ -418,7 +418,11 @@ i32 main(i32 argc, const char *argv[]) {
     }
     const char *port = argv[1];
 
+#ifdef DEBUG
     LogInit(LOG_DBG);
+#else
+    LogInit(LOG_INF);
+#endif
     ServerSetTickrate(60);
     TimerStart(&serverState.timer);
 
@@ -476,7 +480,7 @@ i32 main(i32 argc, const char *argv[]) {
         ServerTickBegin();
 
         if (clients.count < 1) {
-            LOG_INF("waiting for clients to connect");
+            LOG_DBG("waiting for clients to connect");
             goto sleep;
         }
 
