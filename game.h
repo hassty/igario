@@ -1,7 +1,7 @@
 #ifndef GAME_H
 #define GAME_H
 
-#include "base/util.h"
+#include "base/base.h"
 
 #define CELL_SIZE 40.f
 #define MAP_CELL_COUNT 50

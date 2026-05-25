@@ -1,7 +1,7 @@
 #include "game.h"
 #include "base/log.h"
 #include "base/arena.h"
-#include "base/util.h"
+#include "base/base.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -252,10 +252,10 @@ i32 main(i32 argc, const char *argv[]) {
         exit(EXIT_FAILURE);
     }
 #ifdef DEBUG
-    LogInit(LOG_DBG);
+    log_init(LOG_DBG);
     SetTraceLogLevel(LOG_DEBUG);
 #else
-    LogInit(LOG_INF);
+    log_init(LOG_INF);
     SetTraceLogLevel(LOG_NONE);
 #endif
     frameArena = arena_create(MB(4));

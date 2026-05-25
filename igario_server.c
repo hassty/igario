@@ -5,7 +5,7 @@
 #include "base/os.h"
 #include "base/log.h"
 #include "base/arena.h"
-#include "base/util.h"
+#include "base/base.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -268,7 +268,7 @@ static void *NetworkThreadFn(void *arg) {
         Client *client = ClientsFindByAddr(&clientAddr);
         Player *player = NULL;
 
-        u64 ts = OsNowUsec();
+        u64 ts = os_now_usec();
         if (client) {
             client->lastPacketTimeUsec = ts;
             player = &client->player;
@@ -396,11 +396,11 @@ static void ServerSetTickrate(u16 hz) {
 }
 
 static void ServerTickBegin(void) {
-    serverState.tickBeginUsec = OsNowUsec();
+    serverState.tickBeginUsec = os_now_usec();
 }
 
 static void ServerTickEnd(void) {
-    serverState.tickEndUsec = OsNowUsec();
+    serverState.tickEndUsec = os_now_usec();
 
     u64 deltaUsec = serverState.tickEndUsec - serverState.tickBeginUsec;
     if (deltaUsec >= SEC_TO_USEC(serverState.tickDurationSec)){
@@ -408,7 +408,7 @@ static void ServerTickEnd(void) {
     }
 
     u64 sleepUsec = SEC_TO_USEC(serverState.tickDurationSec) - deltaUsec;
-    OsSleepUsec(sleepUsec);
+    os_sleep_usec(sleepUsec);
 }
 
 i32 main(i32 argc, const char *argv[]) {
@@ -419,9 +419,9 @@ i32 main(i32 argc, const char *argv[]) {
     const char *port = argv[1];
 
 #ifdef DEBUG
-    LogInit(LOG_DBG);
+    log_init(LOG_DBG);
 #else
-    LogInit(LOG_INF);
+    log_init(LOG_INF);
 #endif
     ServerSetTickrate(60);
     TimerStart(&serverState.timer);
