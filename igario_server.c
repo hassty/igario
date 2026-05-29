@@ -270,7 +270,7 @@ static void *NetworkThreadFn(void *arg) {
         Client *client = ClientsFindByAddr(&clientAddr);
         Player *player = NULL;
 
-        u64 ts = os_now_usec();
+        u64 ts = os_monotonic_usec();
         if (client) {
             client->lastPacketTimeUsec = ts;
             player = &client->player;
@@ -398,19 +398,19 @@ static void ServerSetTickrate(u16 hz) {
 }
 
 static void ServerTickBegin(void) {
-    serverState.tickBeginUsec = os_now_usec();
+    serverState.tickBeginUsec = os_monotonic_usec();
 }
 
 static void ServerTickEnd(void) {
-    serverState.tickEndUsec = os_now_usec();
+    serverState.tickEndUsec = os_monotonic_usec();
 
     u64 deltaUsec = serverState.tickEndUsec - serverState.tickBeginUsec;
     if (deltaUsec >= SEC_TO_USEC(serverState.tickDurationSec)){
         return;
     }
 
-    u64 sleepUsec = SEC_TO_USEC(serverState.tickDurationSec) - deltaUsec;
-    os_sleep_usec(sleepUsec);
+    u64 sleepMsec = (u64)SEC_TO_MSEC(serverState.tickDurationSec) - USEC_TO_MSEC(deltaUsec);
+    os_sleep_msec(sleepMsec);
 }
 
 void SigintHandler(i32 signo) {
