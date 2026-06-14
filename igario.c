@@ -1,19 +1,19 @@
+#define MEMORY_STDLIB
+#define LOG_IMPLEMENTATION
+#define ARENA_IMPLEMENTATION
 #include "game.h"
 #include "base/log.h"
 #include "base/arena.h"
 #include "base/base.h"
 
-#include <arpa/inet.h>
 #include <errno.h>
-#include <netdb.h>
-#include <pthread.h>
 #include <raylib.h>
 #include <raymath.h>
 #include <rlgl.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <sys/socket.h>
-#include <unistd.h>
+
+#include "os.h"
 
 #define MAP_BG_COLOR RAYWHITE
 #define FOOD_ITEM_COLOR ORANGE
@@ -67,9 +67,6 @@ static void DrawBG(i32 slices, f32 spacing) {
     rlEnd();
 }
 
-static struct addrinfo *serverInfo = NULL;
-static i32 sock = -1;
-
 static const char *packetTypesClientStr[] = {
     PACKET_TYPES_CLIENT(AS_PACKET_STR) "UNKNOWN"};
 
@@ -86,15 +83,16 @@ GameStateClient *gameState = NULL;
 
 Arena frameArena = {0};
 
+static os_socket *sock = NULL;
+
 static bool PacketSend(const PacketClient *packet, usize packetSize) {
-    i32 txBytes = sendto(sock, packet, packetSize, 0, serverInfo->ai_addr,
-                         serverInfo->ai_addrlen);
+    i32 txBytes = os_sendto(sock, (const u8*)packet, packetSize);
     if (txBytes == -1) {
         LOG_WRN("sendto: packet type %s, errno %d",
                 packetTypesClientStr[packet->type], errno);
         return false;
     }
-    LOG_DBG("tx: %s, %lu bytes", packetTypesClientStr[packet->type], packetSize);
+    LOG_DBG("tx: %s, %zu bytes", packetTypesClientStr[packet->type], packetSize);
     return true;
 }
 
@@ -141,12 +139,12 @@ static bool PacketServerHandle(const PacketServer* packet) {
     return true;
 }
 
-static void *NetworkThreadFn(void *arg) {
+static void NetworkThreadFn(void *arg) {
     UNUSED(arg);
 
     while (true) {
         u8 buf[NET_PACKET_MAX_SIZE] = {0};
-        i32 rxBytes = recvfrom(sock, buf, sizeof(buf), 0, NULL, NULL);
+        i32 rxBytes = os_recvfrom(sock, buf, sizeof(buf));
         if (rxBytes == -1) {
             LOG_WRN("recvfrom: errno %d", errno);
             exit(EXIT_FAILURE);
@@ -168,33 +166,7 @@ static void *NetworkThreadFn(void *arg) {
 }
 
 static void ConnectToServer(const char *hostname, const char *port) {
-    struct addrinfo hints = {
-        .ai_family = AF_INET,
-        .ai_socktype = SOCK_DGRAM,
-    };
-
-    struct addrinfo *result = NULL;
-    int err = getaddrinfo(hostname, port, &hints, &result);
-    if (err != 0) {
-        LOG_ERR("getaddrinfo: %s", gai_strerror(err));
-        exit(EXIT_FAILURE);
-    }
-
-    for (serverInfo = result; serverInfo != NULL;
-         serverInfo = result->ai_next) {
-        sock = socket(serverInfo->ai_family, serverInfo->ai_socktype,
-                      serverInfo->ai_protocol);
-        if (sock == -1) {
-            continue;
-        }
-
-        break;
-    }
-
-    if (serverInfo == NULL) {
-        LOG_ERR("failed to create socket");
-        exit(EXIT_FAILURE);
-    }
+    sock = os_udp_socket(hostname, port);
 
     PacketClient connect = {
         .type = PACKET_CLIENT_PLAYER_CONNECT,
@@ -202,7 +174,7 @@ static void ConnectToServer(const char *hostname, const char *port) {
     PacketSend(&connect, sizeof(connect));
 
     u8 buf[NET_PACKET_MAX_SIZE] = {0};
-    i32 rxBytes = recvfrom(sock, buf, sizeof(buf), 0, NULL, NULL);
+    i32 rxBytes = os_recvfrom(sock, buf, sizeof(buf));
     if (rxBytes == -1) {
         LOG_WRN("recvfrom: errno %d", errno);
         return;
@@ -222,12 +194,7 @@ static void ConnectToServer(const char *hostname, const char *port) {
         pkt = (PacketServer*)offset;
     }
 
-    pthread_t networkThread = 0;
-    err = pthread_create(&networkThread, NULL, NetworkThreadFn, NULL);
-    if (err != 0) {
-        LOG_ERR("pthread_create: %d", err);
-        exit(EXIT_FAILURE);
-    }
+    os_create_thread(NetworkThreadFn, NULL);
 }
 
 #define CAST_PTR_TO_TYPE(ptr, type) ((*((type*)(&(ptr)))))
@@ -235,11 +202,11 @@ static void ConnectToServer(const char *hostname, const char *port) {
 
 // TODO: dry?
 static void PlayerDraw(const Player *p) {
-    DrawCircle(p->position.x, p->position.y, p->radius, RGBA_TO_COLOR(p->color));
+    DrawCircle((i32)p->position.x, (i32)p->position.y, p->radius, RGBA_TO_COLOR(p->color));
 }
 
 static void FoodItemDraw(const FoodItem *f) {
-    DrawCircle(f->position.x, f->position.y, f->radius, FOOD_ITEM_COLOR);
+    DrawCircle((i32)f->position.x, (i32)f->position.y, f->radius, FOOD_ITEM_COLOR);
 }
 
 static bool PlayerCanShrink(const Player *p) {
@@ -260,13 +227,14 @@ i32 main(i32 argc, const char *argv[]) {
 #endif
     frameArena = arena_create(MB(4));
 
-    const char *hostname =  argv[1];
-    const char *port =  argv[2];
+    const char *hostname = argv[1];
+    const char *port = argv[2];
     ConnectToServer(hostname, port);
 
     // TODO: define constants
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
-    InitWindow(800, 600, "igario");
+    InitWindow(0, 0, "igario");
+    HideCursor();
     SetTargetFPS(60);
 
     // TODO: zoom out when player grows, but clamp zoom to world bounds
@@ -313,13 +281,14 @@ i32 main(i32 argc, const char *argv[]) {
             verticalDir = MOVE_NONE;
         }
 
-        // TODO: this is for testing only and should be removed
+#ifdef DEBUG
         if (IsKeyDown(KEY_MINUS)) {
             camera.zoom -= 0.5f * dt;
         } else if (IsKeyDown(KEY_EQUAL)) {
             camera.zoom += 0.5f * dt;
         }
-        camera.zoom = Clamp(camera.zoom, 0.1, 10);
+        camera.zoom = Clamp(camera.zoom, 0.1f, 10.0f);
+#endif
 
         Vector2 velocity = {0};
         if (horizontalDir == MOVE_RIGHT) {
@@ -373,8 +342,8 @@ i32 main(i32 argc, const char *argv[]) {
             player.position.y = MapGetLowerBound(&map) + player.radius;
         }
 
-        f32 screenW = GetScreenWidth();
-        f32 screenH = GetScreenHeight();
+        i32 screenW = GetScreenWidth();
+        i32 screenH = GetScreenHeight();
         camera.offset = CLITERAL(Vector2){
             .x = screenW / 2.f,
             .y = screenH / 2.f,
@@ -408,7 +377,9 @@ i32 main(i32 argc, const char *argv[]) {
             FoodItemDraw(firstFoodItem + i);
         }
 
+#ifdef DEBUG
         PlayerDraw(&ghost);
+#endif
         if (PlayerCanShrink(&player)) {
             Rgba borderColor = {
                 .r = player.color.r + 50,
@@ -416,8 +387,8 @@ i32 main(i32 argc, const char *argv[]) {
                 .b = player.color.b + 50,
                 .a = player.color.a,
             };
-            DrawCircle(player.position.x, player.position.y, player.radius, RGBA_TO_COLOR(borderColor));
-            DrawCircle(player.position.x, player.position.y, player.radius - 2, RGBA_TO_COLOR(player.color));
+            DrawCircle((i32)player.position.x, (i32)player.position.y, player.radius, RGBA_TO_COLOR(borderColor));
+            DrawCircle((i32)player.position.x, (i32)player.position.y, player.radius - 2, RGBA_TO_COLOR(player.color));
         } else {
             PlayerDraw(&player);
         }
@@ -431,11 +402,13 @@ i32 main(i32 argc, const char *argv[]) {
 
         EndMode2D();
 
-        // DEBUG INFO
+#ifdef DEBUG
         const char *text = TextFormat("x: %.2f\ny: %.2f\nid: %d\nplayers: %d",
                                       player.position.x, player.position.y,
                                       player.id, gameState->playerCount);
         DrawText(text, 10, 10, 24, BLACK);
+        DrawFPS(screenW - 90, 10);
+#endif
 
         arena_reset(&frameArena);
         EndDrawing();
